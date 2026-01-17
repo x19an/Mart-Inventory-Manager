@@ -20,7 +20,7 @@ The system is built with a **modular backend structure**, making it easy to exte
 
 ## 🛠️ Tech Stack
 
-- **Language:** Python 3
+- **Language:** Python 3 / TypeScript / JS
 - **Database:** SQLite3
 - **Architecture:** Modular (separated concerns)
 - **Interface:** Command-Line Interface (CLI)  
