@@ -11,6 +11,7 @@ export interface Product {
 
 export interface Transaction {
   id: string;
+  checkoutId: string; // Grouping ID for multi-item sales
   productId: string;
   productName: string;
   type: 'SALE' | 'STOCK_ADD' | 'STOCK_ADJUST';
@@ -36,6 +37,7 @@ export interface MasterData {
 }
 
 export enum View {
+  DASHBOARD = 'DASHBOARD',
   ADD_PRODUCT = 'ADD_PRODUCT',
   SELL_PRODUCT = 'SELL_PRODUCT',
   SEARCH_PRODUCTS = 'SEARCH_PRODUCTS',
