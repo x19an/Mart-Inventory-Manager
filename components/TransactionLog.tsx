@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Transaction, Settings } from '../types';
 
 interface TransactionLogProps {
@@ -8,8 +8,20 @@ interface TransactionLogProps {
 }
 
 const TransactionLog: React.FC<TransactionLogProps> = ({ transactions, settings }) => {
-  // Sort by timestamp descending (newest first)
-  const sortedLogs = [...transactions].sort((a, b) => b.timestamp - a.timestamp);
+  const [visibleCount, setVisibleCount] = useState(100);
+
+  // Sort and limit logic
+  const sortedLogs = useMemo(() => {
+    return [...transactions].sort((a, b) => b.timestamp - a.timestamp);
+  }, [transactions]);
+
+  const displayedLogs = useMemo(() => {
+    return sortedLogs.slice(0, visibleCount);
+  }, [sortedLogs, visibleCount]);
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + 100);
+  };
 
   const getTypeStyle = (type: Transaction['type']) => {
     switch (type) {
@@ -48,8 +60,8 @@ const TransactionLog: React.FC<TransactionLogProps> = ({ transactions, settings 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
-              {sortedLogs.length > 0 ? (
-                sortedLogs.map((log) => (
+              {displayedLogs.length > 0 ? (
+                displayedLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-700/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="text-slate-100 text-sm font-medium">
@@ -86,6 +98,20 @@ const TransactionLog: React.FC<TransactionLogProps> = ({ transactions, settings 
             </tbody>
           </table>
         </div>
+
+        {sortedLogs.length > visibleCount && (
+          <div className="p-6 bg-slate-950/30 border-t border-slate-700 flex flex-col items-center space-y-3">
+             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+              Showing {visibleCount} of {sortedLogs.length} transactions
+            </p>
+            <button
+              onClick={handleLoadMore}
+              className="px-8 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-blue-500 text-xs font-bold rounded-xl transition-all active:scale-95"
+            >
+              View Older Transactions
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

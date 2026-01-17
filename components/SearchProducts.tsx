@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Product } from '../types';
 
 interface SearchProductsProps {
@@ -10,12 +10,24 @@ interface SearchProductsProps {
 
 const SearchProducts: React.FC<SearchProductsProps> = ({ products, onEdit, currency }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [visibleCount, setVisibleCount] = useState(100);
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    p.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = useMemo(() => {
+    const term = searchTerm.toLowerCase();
+    return products.filter(p => 
+      p.name.toLowerCase().includes(term) || 
+      p.category.toLowerCase().includes(term) ||
+      p.id.toLowerCase().includes(term)
+    );
+  }, [products, searchTerm]);
+
+  const displayedProducts = useMemo(() => {
+    return filteredProducts.slice(0, visibleCount);
+  }, [filteredProducts, visibleCount]);
+
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + 100);
+  };
 
   return (
     <div className="space-y-6">
@@ -24,9 +36,12 @@ const SearchProducts: React.FC<SearchProductsProps> = ({ products, onEdit, curre
           <span className="absolute left-4 text-slate-500">🔍</span>
           <input
             type="text"
-            placeholder="Search by Name, Category, or ID..."
+            placeholder="Search thousands of products by Name, Category, or ID..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setVisibleCount(100); // Reset limit on search
+            }}
             className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-11 pr-4 py-3 text-white placeholder-slate-600 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
           />
         </div>
@@ -45,8 +60,8 @@ const SearchProducts: React.FC<SearchProductsProps> = ({ products, onEdit, curre
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
-              {filteredProducts.length > 0 ? (
-                filteredProducts.map((p) => {
+              {displayedProducts.length > 0 ? (
+                displayedProducts.map((p) => {
                   const stockPercentage = Math.min(100, (p.stock / (p.reorderLevel * 2)) * 100);
                   const isLow = p.stock <= p.reorderLevel;
 
@@ -97,6 +112,20 @@ const SearchProducts: React.FC<SearchProductsProps> = ({ products, onEdit, curre
             </tbody>
           </table>
         </div>
+        
+        {filteredProducts.length > visibleCount && (
+          <div className="p-6 bg-slate-950/30 border-t border-slate-700 flex flex-col items-center space-y-3">
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+              Showing {visibleCount} of {filteredProducts.length} results
+            </p>
+            <button
+              onClick={handleLoadMore}
+              className="px-8 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-blue-500 text-xs font-bold rounded-xl transition-all active:scale-95"
+            >
+              Load 100 More Items
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -17,6 +17,9 @@ const Dashboard: React.FC<DashboardProps> = ({ products, transactions, settings,
   const salesToday = transactions.filter(t => t.type === 'SALE' && t.timestamp >= today);
   const revenueToday = salesToday.reduce((sum, t) => sum + (t.total || 0), 0);
   const lowStockProducts = products.filter(p => (p.stock || 0) <= (p.reorderLevel || 0));
+  
+  // Optimization: Dashboard should only show the most critical low stock items
+  const lowStockWatchlist = lowStockProducts.slice(0, 20);
 
   const stats = [
     { label: "Today's Revenue", value: `${settings.currency} ${revenueToday.toLocaleString()}`, icon: "💰", color: "text-green-500", bg: "bg-green-500/10" },
@@ -65,11 +68,14 @@ const Dashboard: React.FC<DashboardProps> = ({ products, transactions, settings,
           <div className="p-6 border-b border-slate-700 flex justify-between items-center">
             <h3 className="text-white font-bold flex items-center">
               <span className="mr-2">🚨</span> Low Stock Alerts
+              {lowStockProducts.length > 20 && (
+                <span className="ml-2 text-[10px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-bold">Showing Critical 20</span>
+              )}
             </h3>
             <button onClick={() => onViewChange(View.SEARCH_PRODUCTS)} className="text-blue-400 text-xs hover:underline">View All</button>
           </div>
           <div className="max-h-[400px] overflow-y-auto">
-            {lowStockProducts.length > 0 ? (
+            {lowStockWatchlist.length > 0 ? (
               <table className="w-full text-left">
                 <thead className="bg-slate-900/50 text-[10px] uppercase text-slate-500 font-bold tracking-widest">
                   <tr>
@@ -80,7 +86,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, transactions, settings,
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-700/50">
-                  {lowStockProducts.map(p => (
+                  {lowStockWatchlist.map(p => (
                     <tr key={p.id} className="hover:bg-slate-700/30 transition-colors">
                       <td className="px-6 py-4 text-slate-200 text-sm font-medium">{p.name}</td>
                       <td className="px-6 py-4 text-slate-500 text-xs">{p.category}</td>
