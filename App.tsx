@@ -13,6 +13,7 @@ import SettingsManager from './components/SettingsManager';
 import TransactionLog from './components/TransactionLog';
 import Dashboard from './components/Dashboard';
 import Login from './components/Login';
+import BootingScreen from './components/BootingScreen';
 import { Product, View, Settings, Transaction, MasterData } from './types';
 import { loadMasterDB, saveMasterDB } from './services/storageService';
 
@@ -23,7 +24,8 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   
   const [activeView, setActiveView] = useState<View>(View.DASHBOARD);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isInitialBoot, setIsInitialBoot] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [isExited, setIsExited] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -36,14 +38,17 @@ const App: React.FC = () => {
     setCategories(db.categories);
     setSettings(db.settings);
     setTransactions(db.transactions);
+    setDataLoaded(true);
     return db;
   };
 
   useEffect(() => {
     const init = async () => {
       const db = await fetchData();
-      setIsAuthenticated(!db.settings.accessPin);
-      setIsLoading(false);
+      // If there's no PIN, authenticated by default
+      if (!db.settings.accessPin) {
+        setIsAuthenticated(true);
+      }
     };
     init();
   }, []);
@@ -76,7 +81,7 @@ const App: React.FC = () => {
 
   // Auto-Save Effect
   useEffect(() => {
-    if (isLoading || !settings) return;
+    if (isInitialBoot || !settings) return;
     const sync = async () => {
       setIsSyncing(true);
       const db: MasterData = { products, categories, settings, transactions };
@@ -85,7 +90,7 @@ const App: React.FC = () => {
     };
     const timer = setTimeout(sync, 1000);
     return () => clearTimeout(timer);
-  }, [products, categories, settings, transactions, isLoading]);
+  }, [products, categories, settings, transactions, isInitialBoot]);
 
   const addTransaction = (transactionData: Omit<Transaction, 'id' | 'timestamp'>) => {
     const newTransaction: Transaction = {
@@ -202,12 +207,12 @@ const App: React.FC = () => {
     return activeView.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ');
   };
 
-  if (isLoading) {
+  if (isInitialBoot) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="text-slate-500 font-bold tracking-widest animate-pulse">BOOTING SYSTEM...</p>
-      </div>
+      <BootingScreen 
+        isDataLoaded={dataLoaded} 
+        onComplete={() => setIsInitialBoot(false)} 
+      />
     );
   }
 
@@ -215,7 +220,7 @@ const App: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white p-8">
         <h1 className="text-4xl font-bold text-blue-500 mb-4">System Logged Out</h1>
-        <button onClick={() => setIsExited(false)} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">Restart</button>
+        <button onClick={() => setIsExited(false)} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">Restart Engine</button>
       </div>
     );
   }
@@ -225,7 +230,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-950">
+    <div className="flex min-h-screen bg-slate-950 animate-in fade-in duration-700">
       <TopBar 
         martName={settings?.martName || ''} 
         onLock={handleLock} 
