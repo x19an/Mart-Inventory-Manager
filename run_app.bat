@@ -1,3 +1,4 @@
+
 @echo off
 TITLE Mart Inventory Management System Launcher
 
@@ -5,25 +6,25 @@ echo ---------------------------------------------------
 echo  MART INVENTORY MANAGEMENT SYSTEM
 echo ---------------------------------------------------
 echo.
-echo [1/2] Starting development server in a new window...
-:: Starts npm run dev in a new command window so you can see the logs
+echo [1/3] Starting SQL Backend Server...
+start cmd /k "node server.js"
+
+echo [2/3] Starting Frontend Dashboard...
 start cmd /k "npm run dev"
 
-echo [2/2] Waiting for server to initialize (5 seconds)...
-:: Gives the dev server (Vite/Parcel/etc) time to spin up
+echo [3/3] Waiting for systems to initialize...
 timeout /t 5 /nobreak > nul
 
 echo.
 echo Launching application at http://localhost:3000 ...
-:: Opens the URL in the default system browser (Google Chrome, Edge, etc.)
+:: Updated to match user's actual port
 start http://localhost:3000
 
 echo.
 echo ---------------------------------------------------
 echo  SYSTEM LAUNCHED SUCCESSFULLY
 echo.
-echo  - Keep the other command window open while working.
-echo  - You can close THIS window now.
+echo  - Close the two command windows to stop the app.
 echo ---------------------------------------------------
 echo.
 pause

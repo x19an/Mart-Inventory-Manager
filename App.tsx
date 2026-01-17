@@ -17,29 +17,75 @@ import { Product, View, Settings, Transaction, MasterData } from './types';
 import { loadMasterDB, saveMasterDB } from './services/storageService';
 
 const App: React.FC = () => {
-  // Initialize from storage immediately to avoid layout shifts or missing data on first render
-  const initialDB = loadMasterDB();
-  
-  const [products, setProducts] = useState<Product[]>(initialDB.products);
-  const [categories, setCategories] = useState<string[]>(initialDB.categories);
-  const [settings, setSettings] = useState<Settings>(initialDB.settings);
-  const [transactions, setTransactions] = useState<Transaction[]>(initialDB.transactions);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   
   const [activeView, setActiveView] = useState<View>(View.DASHBOARD);
+  const [isLoading, setIsLoading] = useState(true);
   const [isExited, setIsExited] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  
-  // Authenticate immediately if no PIN is set
-  const [isAuthenticated, setIsAuthenticated] = useState(!initialDB.settings.accessPin);
-  
-  const isInitialized = useRef(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Sync state to storage whenever it changes
+  // Initial Load
+  const fetchData = async () => {
+    const db = await loadMasterDB();
+    setProducts(db.products);
+    setCategories(db.categories);
+    setSettings(db.settings);
+    setTransactions(db.transactions);
+    return db;
+  };
+
   useEffect(() => {
-    if (!isInitialized.current) return;
-    const db: MasterData = { products, categories, settings, transactions };
-    saveMasterDB(db);
-  }, [products, categories, settings, transactions]);
+    const init = async () => {
+      const db = await fetchData();
+      setIsAuthenticated(!db.settings.accessPin);
+      setIsLoading(false);
+    };
+    init();
+  }, []);
+
+  const handleManualRefresh = async () => {
+    setIsSyncing(true);
+    await fetchData();
+    setIsSyncing(false);
+  };
+
+  // Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isAuthenticated && settings?.accessPin) return;
+      if (e.altKey) {
+        switch (e.key.toLowerCase()) {
+          case 'd': setActiveView(View.DASHBOARD); break;
+          case 's': setActiveView(View.SELL_PRODUCT); break;
+          case 'i': setActiveView(View.SEARCH_PRODUCTS); break;
+          case 'a': setActiveView(View.ADD_PRODUCT); break;
+          case 'l': setActiveView(View.TRANSACTION_LOG); break;
+          case 'x': handleLock(); break;
+          default: break;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isAuthenticated, settings]);
+
+  // Auto-Save Effect
+  useEffect(() => {
+    if (isLoading || !settings) return;
+    const sync = async () => {
+      setIsSyncing(true);
+      const db: MasterData = { products, categories, settings, transactions };
+      await saveMasterDB(db);
+      setIsSyncing(false);
+    };
+    const timer = setTimeout(sync, 1000);
+    return () => clearTimeout(timer);
+  }, [products, categories, settings, transactions, isLoading]);
 
   const addTransaction = (transactionData: Omit<Transaction, 'id' | 'timestamp'>) => {
     const newTransaction: Transaction = {
@@ -54,7 +100,6 @@ const App: React.FC = () => {
     const productId = Math.random().toString(36).substr(2, 9).toUpperCase();
     const product: Product = { ...newProduct, id: productId, unitsSold: 0 };
     setProducts(prev => [...prev, product]);
-    
     addTransaction({
       checkoutId: 'STOCK-' + Date.now(),
       productId: productId,
@@ -70,7 +115,6 @@ const App: React.FC = () => {
     const checkoutId = 'BULK-' + Date.now();
     const newItems: Product[] = [];
     const newLogs: Transaction[] = [];
-
     newProducts.forEach(item => {
       const productId = Math.random().toString(36).substr(2, 9).toUpperCase();
       const product: Product = { ...item, id: productId, unitsSold: 0 };
@@ -86,7 +130,6 @@ const App: React.FC = () => {
         timestamp: Date.now()
       });
     });
-
     setProducts(prev => [...prev, ...newItems]);
     setTransactions(prev => [...newLogs, ...prev]);
     setActiveView(View.SEARCH_PRODUCTS);
@@ -114,7 +157,6 @@ const App: React.FC = () => {
     const checkoutId = 'SALE-' + Math.random().toString(36).substr(2, 6).toUpperCase();
     const updatedProducts = [...products];
     const newLogs: Transaction[] = [];
-
     saleItems.forEach(item => {
       const pIdx = updatedProducts.findIndex(p => p.id === item.productId);
       if (pIdx !== -1) {
@@ -137,7 +179,6 @@ const App: React.FC = () => {
         });
       }
     });
-
     setProducts(updatedProducts);
     setTransactions(prev => [...newLogs, ...prev]);
   };
@@ -161,6 +202,15 @@ const App: React.FC = () => {
     return activeView.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ');
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-slate-500 font-bold tracking-widest animate-pulse">BOOTING SYSTEM...</p>
+      </div>
+    );
+  }
+
   if (isExited) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white p-8">
@@ -170,14 +220,19 @@ const App: React.FC = () => {
     );
   }
 
-  if (!isAuthenticated && settings.accessPin) {
+  if (!isAuthenticated && settings?.accessPin) {
     return <Login correctPin={settings.accessPin} onLogin={() => setIsAuthenticated(true)} martName={settings.martName} />;
   }
 
   return (
     <div className="flex min-h-screen bg-slate-950">
-      <TopBar martName={settings.martName} onLock={handleLock} />
-      <Sidebar activeView={activeView} onViewChange={setActiveView} adminName={settings.adminName} />
+      <TopBar 
+        martName={settings?.martName || ''} 
+        onLock={handleLock} 
+        isExternal={settings?.useExternalDB}
+        isSyncing={isSyncing}
+      />
+      <Sidebar activeView={activeView} onViewChange={setActiveView} adminName={settings?.adminName || ''} />
       
       <main className="flex-1 ml-64 mt-16 p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-6">
@@ -221,8 +276,9 @@ const App: React.FC = () => {
               <Dashboard 
                 products={products} 
                 transactions={transactions} 
-                settings={settings} 
+                settings={settings!} 
                 onViewChange={setActiveView} 
+                onRefresh={handleManualRefresh}
               />
             )}
             {activeView === View.ADD_PRODUCT && <AddProduct onAdd={handleAddProduct} categories={categories} />}
@@ -231,24 +287,24 @@ const App: React.FC = () => {
               <SellProduct 
                 products={products} 
                 onBulkSale={handleBulkSale} 
-                settings={settings} 
+                settings={settings!} 
                 onViewSearch={() => setActiveView(View.SEARCH_PRODUCTS)}
               />
             )}
             {activeView === View.SEARCH_PRODUCTS && (
-              <SearchProducts products={products} onEdit={(p) => {setEditingProduct(p); setActiveView(View.EDIT_PRODUCT);}} currency={settings.currency} />
+              <SearchProducts products={products} onEdit={(p) => {setEditingProduct(p); setActiveView(View.EDIT_PRODUCT);}} currency={settings!.currency} />
             )}
-            {activeView === View.BEST_SELLERS && <BestSellers products={products} transactions={transactions} currency={settings.currency} />}
+            {activeView === View.BEST_SELLERS && <BestSellers products={products} transactions={transactions} currency={settings!.currency} />}
             {activeView === View.CATEGORIES && <CategoryManager categories={categories} setCategories={setCategories} />}
             {activeView === View.SETTINGS && (
               <SettingsManager 
-                settings={settings} 
-                setSettings={setSettings} 
-                fullData={{ products, categories, settings, transactions }}
+                settings={settings!} 
+                setSettings={setSettings as any} 
+                fullData={{ products, categories, settings: settings!, transactions }}
                 onImport={handleImportData}
               />
             )}
-            {activeView === View.TRANSACTION_LOG && <TransactionLog transactions={transactions} settings={settings} />}
+            {activeView === View.TRANSACTION_LOG && <TransactionLog transactions={transactions} settings={settings!} />}
             {activeView === View.EDIT_PRODUCT && editingProduct && (
               <EditProduct product={editingProduct} onUpdate={handleUpdateProduct} onCancel={() => setActiveView(View.SEARCH_PRODUCTS)} categories={categories} />
             )}

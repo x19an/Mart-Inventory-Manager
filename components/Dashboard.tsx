@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Product, Transaction, Settings, View } from '../types';
 
 interface DashboardProps {
@@ -7,14 +7,16 @@ interface DashboardProps {
   transactions: Transaction[];
   settings: Settings;
   onViewChange: (view: View) => void;
+  onRefresh?: () => Promise<void>;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ products, transactions, settings, onViewChange }) => {
+const Dashboard: React.FC<DashboardProps> = ({ products, transactions, settings, onViewChange, onRefresh }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
   const today = new Date().setHours(0, 0, 0, 0);
   const salesToday = transactions.filter(t => t.type === 'SALE' && t.timestamp >= today);
   const revenueToday = salesToday.reduce((sum, t) => sum + (t.total || 0), 0);
-  const totalRevenue = transactions.filter(t => t.type === 'SALE').reduce((sum, t) => sum + (t.total || 0), 0);
-  const lowStockProducts = products.filter(p => p.stock <= p.reorderLevel);
+  const lowStockProducts = products.filter(p => (p.stock || 0) <= (p.reorderLevel || 0));
 
   const stats = [
     { label: "Today's Revenue", value: `${settings.currency} ${revenueToday.toLocaleString()}`, icon: "💰", color: "text-green-500", bg: "bg-green-500/10" },
@@ -22,6 +24,22 @@ const Dashboard: React.FC<DashboardProps> = ({ products, transactions, settings,
     { label: "Low Stock Items", value: lowStockProducts.length.toString(), icon: "⚠️", color: "text-orange-500", bg: "bg-orange-500/10" },
     { label: "Total Products", value: products.length.toString(), icon: "📦", color: "text-purple-500", bg: "bg-purple-500/10" },
   ];
+
+  const handleRecalculate = async () => {
+    if (onRefresh) {
+      setIsRefreshing(true);
+      await onRefresh();
+      // Small delay for visual feedback if refresh is too fast
+      setTimeout(() => setIsRefreshing(false), 600);
+    }
+  };
+
+  // Safe calculation for total inventory value
+  const totalInventoryValue = products.reduce((sum, p) => {
+    const price = p.price || 0;
+    const stock = p.stock || 0;
+    return sum + (price * stock);
+  }, 0);
 
   return (
     <div className="space-y-8">
@@ -67,8 +85,8 @@ const Dashboard: React.FC<DashboardProps> = ({ products, transactions, settings,
                       <td className="px-6 py-4 text-slate-200 text-sm font-medium">{p.name}</td>
                       <td className="px-6 py-4 text-slate-500 text-xs">{p.category}</td>
                       <td className="px-6 py-4 text-center">
-                        <span className="text-red-400 font-bold">{p.stock}</span>
-                        <span className="text-slate-600 text-[10px] ml-1">/ {p.reorderLevel}</span>
+                        <span className="text-red-400 font-bold">{p.stock || 0}</span>
+                        <span className="text-slate-600 text-[10px] ml-1">/ {p.reorderLevel || 10}</span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button 
@@ -93,14 +111,30 @@ const Dashboard: React.FC<DashboardProps> = ({ products, transactions, settings,
 
         {/* Quick Actions & Summary */}
         <div className="space-y-6">
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl shadow-xl text-white">
-            <h3 className="font-bold text-lg mb-2">Inventory Value</h3>
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl shadow-xl text-white relative overflow-hidden">
+            <div className="flex justify-between items-start mb-2">
+              <h3 className="font-bold text-lg">Inventory Value</h3>
+              <button 
+                onClick={handleRecalculate}
+                title="Recalculate current value"
+                className={`p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-all ${isRefreshing ? 'animate-spin' : ''}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              </button>
+            </div>
             <div className="text-3xl font-bold mb-4">
-              {settings.currency} {products.reduce((sum, p) => sum + (p.price * p.stock), 0).toLocaleString()}
+              {settings.currency} {totalInventoryValue.toLocaleString()}
             </div>
             <p className="text-blue-100 text-xs leading-relaxed opacity-80">
               This represents the total retail value of your current stock across all categories.
             </p>
+            {isRefreshing && (
+              <div className="absolute inset-0 bg-blue-600/20 backdrop-blur-[2px] flex items-center justify-center">
+                <span className="text-[10px] font-black tracking-widest animate-pulse">RECALCULATING...</span>
+              </div>
+            )}
           </div>
 
           <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">

@@ -28,6 +28,9 @@ export interface Settings {
   contact: string;
   currency: string;
   accessPin: string;
+  // Fix: Added missing properties for external DB connectivity
+  useExternalDB: boolean;
+  apiEndpoint: string;
 }
 
 export interface MasterData {
