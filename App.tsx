@@ -150,6 +150,13 @@ const App: React.FC = () => {
     setTransactions(prev => [...newLogs, ...prev]);
   };
 
+  const handleImportData = (data: MasterData) => {
+    setProducts(data.products || []);
+    setCategories(data.categories || []);
+    setSettings(data.settings || settings);
+    setTransactions(data.transactions || []);
+  };
+
   const handleLock = () => {
     setIsAuthenticated(false);
     setActiveView(View.DASHBOARD);
@@ -241,7 +248,14 @@ const App: React.FC = () => {
             )}
             {activeView === View.BEST_SELLERS && <BestSellers products={products} transactions={transactions} currency={settings.currency} />}
             {activeView === View.CATEGORIES && <CategoryManager categories={categories} setCategories={setCategories} />}
-            {activeView === View.SETTINGS && <SettingsManager settings={settings} setSettings={setSettings} />}
+            {activeView === View.SETTINGS && (
+              <SettingsManager 
+                settings={settings} 
+                setSettings={setSettings} 
+                fullData={{ products, categories, settings, transactions }}
+                onImport={handleImportData}
+              />
+            )}
             {activeView === View.TRANSACTION_LOG && <TransactionLog transactions={transactions} settings={settings} />}
             {activeView === View.EDIT_PRODUCT && editingProduct && (
               <EditProduct product={editingProduct} onUpdate={handleUpdateProduct} onCancel={() => setActiveView(View.SEARCH_PRODUCTS)} categories={categories} />
