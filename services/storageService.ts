@@ -18,19 +18,26 @@ const DEFAULT_DATA: MasterData = {
 };
 
 /**
- * Loads the entire database object. If it doesn't exist, returns the default structure.
+ * Loads the entire database object. If it doesn't exist, creates and saves the default structure.
  */
 export const loadMasterDB = (): MasterData => {
   try {
     const data = localStorage.getItem(MASTER_DB_KEY);
-    if (!data) return DEFAULT_DATA;
+    if (!data) {
+      // If no "db file" (LocalStorage entry) exists, create one immediately
+      saveMasterDB(DEFAULT_DATA);
+      return DEFAULT_DATA;
+    }
     
     const parsed = JSON.parse(data);
-    // Merge with defaults to ensure any new fields in types are present
+    // Deep merge with defaults to ensure any new fields in types (like adminName) are present
     return {
       ...DEFAULT_DATA,
       ...parsed,
-      settings: { ...DEFAULT_DATA.settings, ...(parsed.settings || {}) }
+      settings: { 
+        ...DEFAULT_DATA.settings, 
+        ...(parsed.settings || {}) 
+      }
     };
   } catch (error) {
     console.error("Failed to load DB, resetting to defaults", error);
@@ -49,7 +56,6 @@ export const saveMasterDB = (data: MasterData): void => {
   }
 };
 
-// Legacy compatibility helpers if needed, but App.tsx will now mostly use loadMasterDB
 export const clearDB = (): void => {
   localStorage.removeItem(MASTER_DB_KEY);
 };

@@ -17,32 +17,24 @@ import { Product, View, Settings, Transaction, MasterData } from './types';
 import { loadMasterDB, saveMasterDB } from './services/storageService';
 
 const App: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [settings, setSettings] = useState<Settings>(loadMasterDB().settings);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // Initialize from storage immediately to avoid layout shifts or missing data on first render
+  const initialDB = loadMasterDB();
+  
+  const [products, setProducts] = useState<Product[]>(initialDB.products);
+  const [categories, setCategories] = useState<string[]>(initialDB.categories);
+  const [settings, setSettings] = useState<Settings>(initialDB.settings);
+  const [transactions, setTransactions] = useState<Transaction[]>(initialDB.transactions);
   
   const [activeView, setActiveView] = useState<View>(View.DASHBOARD);
   const [isExited, setIsExited] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
-  const isInitialized = useRef(false);
+  // Authenticate immediately if no PIN is set
+  const [isAuthenticated, setIsAuthenticated] = useState(!initialDB.settings.accessPin);
+  
+  const isInitialized = useRef(true);
 
-  useEffect(() => {
-    const db = loadMasterDB();
-    setProducts(db.products);
-    setCategories(db.categories);
-    setSettings(db.settings);
-    setTransactions(db.transactions);
-    
-    if (!db.settings.accessPin) {
-      setIsAuthenticated(true);
-    }
-    
-    isInitialized.current = true;
-  }, []);
-
+  // Sync state to storage whenever it changes
   useEffect(() => {
     if (!isInitialized.current) return;
     const db: MasterData = { products, categories, settings, transactions };
