@@ -8,32 +8,41 @@ interface BestSellersProps {
   currency: string;
 }
 
-interface HoverState {
-  productId: string;
-  dayIdx: number;
-  x: number;
-  y: number;
-  value: number;
-  productName: string;
-  dateLabel: string;
-  color: string;
-}
+type ChartMode = 'revenue' | 'units';
 
-const BestSellers: React.FC<BestSellersProps> = ({ products, transactions, currency }) => {
-  const [hoveredPoint, setHoveredPoint] = useState<HoverState | null>(null);
+export const BestSellers: React.FC<BestSellersProps> = ({ products, transactions, currency }) => {
+  const [chartMode, setChartMode] = useState<ChartMode>('units');
+  const [hoveredPoint, setHoveredPoint] = useState<any>(null);
 
-  // Constants for Chart
-  const CHART_HEIGHT = 200;
+  // Constants
+  const CHART_HEIGHT = 220;
   const CHART_WIDTH = 800;
-  const PADDING = 40;
   const DAYS_TO_SHOW = 7;
 
-  // Process data for the top 10 table
-  const topTenProducts = useMemo(() => 
-    [...products].sort((a, b) => b.unitsSold - a.unitsSold).slice(0, 10)
-  , [products]);
+  // 1. Calculate Core KPI Metrics
+  const metrics = useMemo(() => {
+    const sales = transactions.filter(t => t.type === 'SALE');
+    const totalRev = sales.reduce((sum, t) => sum + (t.total || 0), 0);
+    const totalUnits = sales.reduce((sum, t) => sum + t.quantity, 0);
+    
+    // Avg Order Value (By Checkout ID)
+    const uniqueCheckouts = new Set(sales.map(t => t.checkoutId)).size;
+    const aov = uniqueCheckouts > 0 ? totalRev / uniqueCheckouts : 0;
 
-  // Process data for the 7-day trend chart
+    // Category Performance
+    const catRevenue: Record<string, number> = {};
+    sales.forEach(t => {
+      const p = products.find(prod => prod.id === t.productId);
+      const cat = p?.category || 'Unknown';
+      catRevenue[cat] = (catRevenue[cat] || 0) + (t.total || 0);
+    });
+
+    const topCategory = Object.entries(catRevenue).sort((a, b) => b[1] - a[1])[0] || ['None', 0];
+
+    return { totalRev, totalUnits, aov, topCategory, catRevenue };
+  }, [transactions, products]);
+
+  // 2. Process Trend Data
   const trendData = useMemo(() => {
     const dates = Array.from({ length: DAYS_TO_SHOW }, (_, i) => {
       const d = new Date();
@@ -42,264 +51,281 @@ const BestSellers: React.FC<BestSellersProps> = ({ products, transactions, curre
       return d;
     });
 
-    const sevenDaysAgo = dates[0].getTime();
-    const recentSales = transactions.filter(t => t.type === 'SALE' && t.timestamp >= sevenDaysAgo);
+    const salesInWindow = transactions.filter(t => t.type === 'SALE' && t.timestamp >= dates[0].getTime());
     
-    const totalsPerProduct: Record<string, { name: string, total: number }> = {};
-    recentSales.forEach(t => {
-      if (!totalsPerProduct[t.productId]) {
-        totalsPerProduct[t.productId] = { name: t.productName, total: 0 };
-      }
-      totalsPerProduct[t.productId].total += t.quantity;
-    });
-
-    const topFiveIds = Object.entries(totalsPerProduct)
-      .sort(([, a], [, b]) => b.total - a.total)
+    const topProductIds = [...products]
+      .sort((a, b) => b.unitsSold - a.unitsSold)
       .slice(0, 5)
-      .map(([id]) => id);
+      .map(p => p.id);
 
     const dailyData = dates.map(date => {
-      const dayStart = date.getTime();
-      const dayEnd = dayStart + 86400000;
-      const daySales = recentSales.filter(t => t.timestamp >= dayStart && t.timestamp < dayEnd);
+      const start = date.getTime();
+      const end = start + 86400000;
+      const daySales = salesInWindow.filter(t => t.timestamp >= start && t.timestamp < end);
       
-      const productVolumes: Record<string, number> = {};
-      topFiveIds.forEach(id => {
-        productVolumes[id] = daySales
-          .filter(t => t.productId === id)
-          .reduce((sum, t) => sum + t.quantity, 0);
+      const values: Record<string, number> = {};
+      topProductIds.forEach(id => {
+        const pSales = daySales.filter(t => t.productId === id);
+        values[id] = chartMode === 'units' 
+          ? pSales.reduce((s, t) => s + t.quantity, 0)
+          : pSales.reduce((s, t) => s + (t.total || 0), 0);
       });
 
       return {
-        dateLabel: date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }),
-        dayName: date.toLocaleDateString(undefined, { weekday: 'short' }),
-        volumes: productVolumes
+        label: date.toLocaleDateString(undefined, { weekday: 'short' }),
+        fullLabel: date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+        values
       };
     });
 
-    const maxVol = Math.max(...dailyData.flatMap(d => Object.values(d.volumes)), 5);
+    const maxVal = Math.max(...dailyData.flatMap(d => Object.values(d.values)), 10);
 
-    return {
-      dailyData,
-      topFiveIds,
-      productInfo: totalsPerProduct,
-      maxVol: maxVol * 1.2
-    };
-  }, [transactions]);
+    return { dailyData, topProductIds, maxVal: maxVal * 1.15 };
+  }, [transactions, products, chartMode]);
 
   const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   return (
-    <div className="space-y-8">
-      {/* Sales Trend Chart */}
-      <div className="bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-xl relative">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h3 className="text-white font-bold text-lg">Daily Sales Trend</h3>
-            <p className="text-slate-400 text-sm">Hover over points to see exact daily volume</p>
+    <div className="space-y-8 pb-10">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700 shadow-xl backdrop-blur-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-3 bg-blue-500/10 rounded-xl text-blue-500 text-2xl font-bold">💰</div>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Revenue</span>
           </div>
-          <div className="flex flex-wrap gap-4 justify-end">
-            {trendData.topFiveIds.map((id, idx) => (
+          <div className="text-2xl font-black text-white">{currency} {metrics.totalRev.toLocaleString()}</div>
+          <div className="text-xs text-slate-500 mt-1 font-medium">All-time Gross Sales</div>
+        </div>
+
+        <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700 shadow-xl backdrop-blur-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-3 bg-green-500/10 rounded-xl text-green-500 text-2xl font-bold">📦</div>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Volume</span>
+          </div>
+          <div className="text-2xl font-black text-white">{metrics.totalUnits.toLocaleString()}</div>
+          <div className="text-xs text-slate-500 mt-1 font-medium">Total Items Sold</div>
+        </div>
+
+        <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700 shadow-xl backdrop-blur-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-3 bg-purple-500/10 rounded-xl text-purple-500 text-2xl font-bold">💳</div>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Avg Sale</span>
+          </div>
+          <div className="text-2xl font-black text-white">{currency} {Math.round(metrics.aov).toLocaleString()}</div>
+          <div className="text-xs text-slate-500 mt-1 font-medium">Value per Transaction</div>
+        </div>
+
+        <div className="bg-slate-800/40 p-6 rounded-2xl border border-slate-700 shadow-xl backdrop-blur-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500 text-2xl font-bold">⭐</div>
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Top Dept</span>
+          </div>
+          <div className="text-2xl font-black text-white truncate pr-2">{metrics.topCategory[0]}</div>
+          <div className="text-xs text-slate-500 mt-1 font-medium">{currency} {Math.round(Number(metrics.topCategory[1])).toLocaleString()} Earned</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Main Trend Chart */}
+        <div className="lg:col-span-2 bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-xl relative">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <h3 className="text-white font-bold text-lg">Sales Performance Trend</h3>
+              <p className="text-slate-400 text-xs">Comparison of top 5 moving products</p>
+            </div>
+            <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-700">
+              <button 
+                onClick={() => setChartMode('units')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${chartMode === 'units' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+              >Units</button>
+              <button 
+                onClick={() => setChartMode('revenue')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${chartMode === 'revenue' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+              >Revenue</button>
+            </div>
+          </div>
+
+          <div className="relative w-full aspect-[800/280]">
+            <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT + 40}`} className="w-full h-full overflow-visible">
+              {/* Y Axis lines */}
+              {[0, 0.5, 1].map((v, i) => (
+                <g key={i}>
+                  <line x1="0" y1={CHART_HEIGHT * (1-v)} x2={CHART_WIDTH} y2={CHART_HEIGHT * (1-v)} stroke="#334155" strokeDasharray="4 4" />
+                  <text x="-10" y={CHART_HEIGHT * (1-v) + 4} fill="#64748b" fontSize="10" textAnchor="end">
+                    {Math.round(trendData.maxVal * v)}
+                  </text>
+                </g>
+              ))}
+
+              {/* Data Lines */}
+              {trendData.topProductIds.map((id, pIdx) => {
+                const points = trendData.dailyData.map((d, dIdx) => {
+                  const x = (CHART_WIDTH / (DAYS_TO_SHOW - 1)) * dIdx;
+                  const y = CHART_HEIGHT - (d.values[id] / trendData.maxVal) * CHART_HEIGHT;
+                  return `${x},${y}`;
+                }).join(' ');
+
+                return (
+                  <g key={id}>
+                    <polyline fill="none" stroke={colors[pIdx]} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" points={points} className="transition-all duration-500" />
+                    {trendData.dailyData.map((d, dIdx) => (
+                      <circle 
+                        key={dIdx} 
+                        cx={(CHART_WIDTH / (DAYS_TO_SHOW - 1)) * dIdx} 
+                        cy={CHART_HEIGHT - (d.values[id] / trendData.maxVal) * CHART_HEIGHT} 
+                        r="4" fill="#1e293b" stroke={colors[pIdx]} strokeWidth="2"
+                        className="cursor-pointer"
+                        onMouseEnter={(e) => setHoveredPoint({
+                          x: (CHART_WIDTH / (DAYS_TO_SHOW - 1)) * dIdx,
+                          y: CHART_HEIGHT - (d.values[id] / trendData.maxVal) * CHART_HEIGHT,
+                          val: d.values[id],
+                          name: products.find(p => p.id === id)?.name,
+                          date: d.fullLabel,
+                          color: colors[pIdx]
+                        })}
+                        onMouseLeave={() => setHoveredPoint(null)}
+                      />
+                    ))}
+                  </g>
+                );
+              })}
+
+              {/* X Axis labels */}
+              {trendData.dailyData.map((d, i) => (
+                <text key={i} x={(CHART_WIDTH / (DAYS_TO_SHOW - 1)) * i} y={CHART_HEIGHT + 25} fill="#64748b" fontSize="10" fontWeight="bold" textAnchor="middle">
+                  {d.label}
+                </text>
+              ))}
+            </svg>
+
+            {hoveredPoint && (
               <div 
-                key={id} 
-                className={`flex items-center space-x-2 transition-opacity duration-300 ${hoveredPoint && hoveredPoint.productId !== id ? 'opacity-30' : 'opacity-100'}`}
+                className="absolute z-10 bg-slate-900 border border-slate-700 p-3 rounded-xl shadow-2xl pointer-events-none animate-in fade-in zoom-in duration-200"
+                style={{ left: `${(hoveredPoint.x / CHART_WIDTH) * 100}%`, top: `${(hoveredPoint.y / (CHART_HEIGHT + 40)) * 100}%`, transform: 'translate(-50%, -100%)' }}
               >
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colors[idx] }}></div>
-                <span className="text-xs text-slate-300 font-medium">{trendData.productInfo[id]?.name}</span>
+                <div className="flex items-center space-x-2 mb-1">
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: hoveredPoint.color }}></div>
+                  <span className="text-white text-[10px] font-bold whitespace-nowrap">{hoveredPoint.name}</span>
+                </div>
+                <div className="text-slate-500 text-[10px] mb-2">{hoveredPoint.date}</div>
+                <div className="text-white font-black text-sm">
+                  {chartMode === 'revenue' ? currency : ''} {hoveredPoint.val.toLocaleString()} {chartMode === 'units' ? 'pcs' : ''}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="mt-8 flex flex-wrap gap-4 pt-4 border-t border-slate-700/50">
+            {trendData.topProductIds.map((id, idx) => (
+              <div key={id} className="flex items-center space-x-2">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colors[idx] }}></div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                  {products.find(p => p.id === id)?.name.substring(0, 15)}...
+                </span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* aspect-[800/240] ensures coordinates mapping is 1:1 between SVG and Div for tooltip centering */}
-        <div className="relative w-full aspect-[800/240]">
-          {trendData.dailyData.length > 0 ? (
-            <>
-              <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT + PADDING}`} className="w-full h-full overflow-visible">
-                {/* Y-Axis Grid Lines */}
-                {[0, 0.25, 0.5, 0.75, 1].map((tick, i) => (
-                  <g key={i}>
-                    <line 
-                      x1="0" 
-                      y1={CHART_HEIGHT * (1 - tick)} 
-                      x2={CHART_WIDTH} 
-                      y2={CHART_HEIGHT * (1 - tick)} 
-                      stroke="#334155" 
-                      strokeDasharray="4 4"
-                    />
-                    <text 
-                      x="-10" 
-                      y={CHART_HEIGHT * (1 - tick) + 4} 
-                      fill="#64748b" 
-                      fontSize="10" 
-                      textAnchor="end"
-                    >
-                      {Math.round(trendData.maxVol * tick)}
-                    </text>
-                  </g>
-                ))}
-
-                {/* X-Axis Labels */}
-                {trendData.dailyData.map((day, i) => (
-                  <text 
-                    key={i}
-                    x={(CHART_WIDTH / (DAYS_TO_SHOW - 1)) * i} 
-                    y={CHART_HEIGHT + 25} 
-                    fill="#64748b" 
-                    fontSize="12" 
-                    fontWeight="500"
-                    textAnchor="middle"
-                  >
-                    {day.dayName}
-                  </text>
-                ))}
-
-                {/* Product Lines */}
-                {trendData.topFiveIds.map((id, pIdx) => {
-                  const points = trendData.dailyData.map((day, dIdx) => {
-                    const x = (CHART_WIDTH / (DAYS_TO_SHOW - 1)) * dIdx;
-                    const y = CHART_HEIGHT - (day.volumes[id] / trendData.maxVol) * CHART_HEIGHT;
-                    return `${x},${y}`;
-                  }).join(' ');
-
-                  const isLineHovered = hoveredPoint?.productId === id;
-
-                  return (
-                    <g key={id} className="transition-opacity duration-300" style={{ opacity: hoveredPoint && !isLineHovered ? 0.15 : 1 }}>
-                      <polyline
-                        fill="none"
-                        stroke={colors[pIdx]}
-                        strokeWidth={isLineHovered ? "4" : "2.5"}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        points={points}
-                        className="transition-all duration-300"
-                      />
-                      
-                      {/* Points Interaction Layer */}
-                      {trendData.dailyData.map((day, dIdx) => {
-                         const x = (CHART_WIDTH / (DAYS_TO_SHOW - 1)) * dIdx;
-                         const y = CHART_HEIGHT - (day.volumes[id] / trendData.maxVol) * CHART_HEIGHT;
-                         const isPointHovered = hoveredPoint?.productId === id && hoveredPoint?.dayIdx === dIdx;
-
-                         return (
-                           <g key={`${id}-${dIdx}`}>
-                             <circle 
-                               cx={x} cy={y} r="18" 
-                               fill="transparent" 
-                               className="cursor-crosshair"
-                               onMouseEnter={() => setHoveredPoint({
-                                 productId: id,
-                                 dayIdx: dIdx,
-                                 x, y,
-                                 value: day.volumes[id],
-                                 productName: trendData.productInfo[id].name,
-                                 dateLabel: day.dateLabel,
-                                 color: colors[pIdx]
-                               })}
-                               onMouseLeave={() => setHoveredPoint(null)}
-                             />
-                             <circle 
-                               cx={x} cy={y} 
-                               r={isPointHovered ? "6" : "4"} 
-                               fill={isPointHovered ? colors[pIdx] : "#1e293b"} 
-                               stroke={colors[pIdx]} 
-                               strokeWidth="2"
-                               className="pointer-events-none transition-all duration-200"
-                               style={{ filter: isPointHovered ? `drop-shadow(0 0 8px ${colors[pIdx]})` : 'none' }}
-                             />
-                           </g>
-                         );
-                      })}
-                    </g>
-                  );
-                })}
-              </svg>
-
-              {/* Floating Tooltip */}
-              {hoveredPoint && (
-                <div 
-                  className="absolute z-50 pointer-events-none bg-slate-900 border border-slate-700 rounded-xl p-4 shadow-2xl animate-in fade-in zoom-in duration-200 min-w-[120px] text-center flex flex-col items-center"
-                  style={{ 
-                    left: `${(hoveredPoint.x / CHART_WIDTH) * 100}%`, 
-                    top: `${(hoveredPoint.y / (CHART_HEIGHT + PADDING)) * 100}%`,
-                    transform: 'translate(-50%, calc(-100% - 15px))'
-                  }}
-                >
-                  <div className="flex items-center space-x-2 mb-0.5">
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: hoveredPoint.color }}></div>
-                    <span className="text-white text-sm font-bold whitespace-nowrap">{hoveredPoint.productName}</span>
+        {/* Category Breakdown */}
+        <div className="bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-xl">
+          <h3 className="text-white font-bold text-lg mb-2">Dept. Revenue</h3>
+          <p className="text-slate-400 text-xs mb-8">Earning share by product category</p>
+          
+          <div className="space-y-6">
+            {Object.entries(metrics.catRevenue)
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 6)
+              .map(([name, rev]) => {
+                const percentage = Math.round((rev / metrics.totalRev) * 100) || 0;
+                return (
+                  <div key={name} className="space-y-2">
+                    <div className="flex justify-between items-end">
+                      <span className="text-slate-300 text-xs font-bold">{name}</span>
+                      <span className="text-white text-[10px] font-mono">{currency} {rev.toLocaleString()}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)] transition-all duration-1000" 
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-500 mb-4">{hoveredPoint.dateLabel}</div>
-                  
-                  <div className="flex flex-col items-center">
-                    <span className="text-3xl font-mono font-bold text-white leading-none tracking-tight">
-                      {hoveredPoint.value}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest mt-1">
-                      units
-                    </span>
-                  </div>
-                  
-                  {/* Tooltip arrow */}
-                  <div className="absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-r border-b border-slate-700 rotate-45"></div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="h-full flex items-center justify-center text-slate-500 italic">
-              Insufficient transaction data to generate trend.
+                );
+              })}
+          </div>
+          
+          <div className="mt-12 p-4 bg-slate-950/40 rounded-xl border border-slate-700/50">
+            <div className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Efficiency Metric</div>
+            <div className="text-slate-200 text-sm font-medium">
+              {Object.keys(metrics.catRevenue).length} Departments active.
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      {/* Top Sellers Table */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
-        <div className="p-6 border-b border-slate-700 bg-slate-950/30">
-          <h3 className="text-white font-bold">Top 10 All-Time Sellers</h3>
+      {/* Enhanced Performance Table */}
+      <div className="bg-slate-800 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
+        <div className="p-6 border-b border-slate-700 bg-slate-950/20 flex justify-between items-center">
+          <div>
+            <h3 className="text-white font-bold">SKU Performance Leaderboard</h3>
+            <p className="text-slate-500 text-xs">Analysis of high-contribution inventory</p>
+          </div>
         </div>
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-950/50 border-b border-slate-700">
-              <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-widest">Rank</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-widest">Product Name</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-widest">Category</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-widest text-right">Units Sold</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-widest text-right">Revenue</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-700/50">
-            {topTenProducts.length > 0 ? (
-              topTenProducts.map((p, index) => (
-                <tr key={p.id} className="hover:bg-slate-700/30 transition-colors">
-                  <td className="px-6 py-4">
-                    <span className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-xs ${
-                      index === 0 ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/50' :
-                      index === 1 ? 'bg-slate-300/20 text-slate-300 border border-slate-300/50' :
-                      index === 2 ? 'bg-orange-700/20 text-orange-600 border border-orange-700/50' :
-                      'bg-slate-900 text-slate-500'
-                    }`}>
-                      {index + 1}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-100 font-medium">{p.name}</td>
-                  <td className="px-6 py-4 text-slate-400 text-sm">{p.category}</td>
-                  <td className="px-6 py-4 text-right font-bold text-blue-400">{p.unitsSold}</td>
-                  <td className="px-6 py-4 text-right text-green-400 font-mono">
-                    {currency} {(p.unitsSold * p.price).toLocaleString()}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-slate-500 italic">
-                  No sales data available yet. Start selling products to see statistics.
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-slate-900/50">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Rank</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Product SKU</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest">Category</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-center">Volume</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Revenue</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-500 uppercase tracking-widest text-right">Contribution</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-700/30">
+              {[...products].sort((a,b) => b.unitsSold - a.unitsSold).slice(0, 15).map((p, idx) => {
+                const revenue = p.unitsSold * p.price;
+                const contribution = ((revenue / metrics.totalRev) * 100).toFixed(1);
+                
+                return (
+                  <tr key={p.id} className="hover:bg-slate-700/20 transition-colors">
+                    <td className="px-6 py-4">
+                      <span className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${
+                        idx < 3 ? 'bg-amber-500/20 text-amber-500 border border-amber-500/30' : 'bg-slate-900 text-slate-500'
+                      }`}>
+                        {idx + 1}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-white text-sm font-bold">{p.name}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">#{p.id}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs text-slate-400">{p.category}</span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="text-blue-400 font-bold">{p.unitsSold.toLocaleString()}</span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="text-green-500 font-mono text-sm">{currency} {revenue.toLocaleString()}</span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end space-x-2">
+                        <span className="text-xs font-black text-slate-200">{contribution}%</span>
+                        <div className="w-12 h-1 bg-slate-900 rounded-full overflow-hidden">
+                          <div className="h-full bg-blue-600" style={{ width: `${contribution}%` }}></div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
