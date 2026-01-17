@@ -1,13 +1,33 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# 🏪 Mart Inventory Manager
 
-This contains everything you need to run your app locally.
+A simple **Inventory Management System** designed for small marts and shops.  
+This project allows users to **add products, manage stock, record sales, and analyze best-selling items**.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1GFnjxN-_NwQEtp3tsAbdRDZouYZEmwxp
+The system is built with a **modular backend structure**, making it easy to extend with a GUI or web interface in the future.
 
+---
+
+## 🚀 Features
+
+- 📦 Add and manage products
+- 🔍 Search inventory by name or category
+- 💰 Sell products and update stock automatically
+- 📊 View best-selling products
+- ⚠️ Reorder-level tracking (low-stock awareness)
+- 🗄️ Persistent storage using SQLite
+
+---
+
+## 🛠️ Tech Stack
+
+- **Language:** Python 3
+- **Database:** SQLite3
+- **Architecture:** Modular (separated concerns)
+- **Interface:** Command-Line Interface (CLI)  
+  *(GUI / Web UI planned)*
+
+---
 ## Run Locally
 
 **Prerequisites:**  Node.js
@@ -15,6 +35,5 @@ View your app in AI Studio: https://ai.studio/apps/drive/1GFnjxN-_NwQEtp3tsAbdRD
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Run the app:
    `npm run dev`
