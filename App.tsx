@@ -211,6 +211,7 @@ const App: React.FC = () => {
     return (
       <BootingScreen 
         isDataLoaded={dataLoaded} 
+        productCount={products.length}
         onComplete={() => setIsInitialBoot(false)} 
       />
     );

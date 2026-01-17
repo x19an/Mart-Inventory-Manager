@@ -4,19 +4,20 @@ import React, { useState, useEffect } from 'react';
 interface BootingScreenProps {
   onComplete: () => void;
   isDataLoaded: boolean;
+  productCount: number;
 }
 
 const BOOT_STEPS = [
-  { message: "INITIALIZING KERNEL...", progress: 10 },
-  { message: "CONNECTING TO SQL BACKEND...", progress: 25 },
-  { message: "INDEXING 5,000+ SKU ENTRIES...", progress: 45 },
-  { message: "OPTIMIZING MEMORY CACHE...", progress: 65 },
-  { message: "VERIFYING TRANSACTION LOGS...", progress: 85 },
-  { message: "PREPARING DASHBOARD...", progress: 95 },
-  { message: "SYSTEM READY.", progress: 100 },
+  { id: 'kernel', message: "INITIALIZING KERNEL...", progress: 10 },
+  { id: 'backend', message: "CONNECTING TO SQL BACKEND...", progress: 25 },
+  { id: 'indexing', message: "INDEXING ENTRIES...", progress: 45 }, // Will be replaced dynamically
+  { id: 'cache', message: "OPTIMIZING MEMORY CACHE...", progress: 65 },
+  { id: 'logs', message: "VERIFYING TRANSACTION LOGS...", progress: 85 },
+  { id: 'dashboard', message: "PREPARING DASHBOARD...", progress: 95 },
+  { id: 'ready', message: "SYSTEM READY.", progress: 100 },
 ];
 
-const BootingScreen: React.FC<BootingScreenProps> = ({ onComplete, isDataLoaded }) => {
+const BootingScreen: React.FC<BootingScreenProps> = ({ onComplete, isDataLoaded, productCount }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
   const [isDone, setIsDone] = useState(false);
@@ -24,12 +25,26 @@ const BootingScreen: React.FC<BootingScreenProps> = ({ onComplete, isDataLoaded 
   useEffect(() => {
     if (currentStep < BOOT_STEPS.length) {
       const timer = setTimeout(() => {
-        // If we're at the sync step, wait for actual data if needed
-        if (BOOT_STEPS[currentStep].progress === 25 && !isDataLoaded) {
+        // Step-specific logic
+        const step = BOOT_STEPS[currentStep];
+        
+        // Wait for data at backend connection step
+        if (step.id === 'backend' && !isDataLoaded) {
           return;
         }
 
-        setLogs(prev => [...prev.slice(-4), BOOT_STEPS[currentStep].message]);
+        let message = step.message;
+        
+        // Dynamic Indexing Message
+        if (step.id === 'indexing') {
+          if (productCount === 0) {
+            message = "INITIALIZING EMPTY DATABASE STRUCTURES...";
+          } else {
+            message = `INDEXING ${productCount.toLocaleString()} SKU ENTRIES...`;
+          }
+        }
+
+        setLogs(prev => [...prev.slice(-4), message]);
         setCurrentStep(prev => prev + 1);
       }, currentStep === 0 ? 500 : 400);
 
@@ -40,7 +55,7 @@ const BootingScreen: React.FC<BootingScreenProps> = ({ onComplete, isDataLoaded 
         setTimeout(onComplete, 500);
       }, 500);
     }
-  }, [currentStep, onComplete, isDataLoaded]);
+  }, [currentStep, onComplete, isDataLoaded, productCount]);
 
   return (
     <div className={`fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center transition-opacity duration-500 ${isDone ? 'opacity-0' : 'opacity-100'}`}>
@@ -60,9 +75,10 @@ const BootingScreen: React.FC<BootingScreenProps> = ({ onComplete, isDataLoaded 
         <div className="mb-4 flex justify-between items-end">
           <div>
             <h2 className="text-blue-500 text-xs font-black tracking-[0.3em] uppercase">System Booting</h2>
-            {/* Removed the static decorative bar from here as it caused confusion */}
           </div>
-          <span className="text-slate-500 font-mono text-xs">{BOOT_STEPS[Math.min(currentStep, BOOT_STEPS.length - 1)].progress}%</span>
+          <span className="text-slate-500 font-mono text-xs">
+            {BOOT_STEPS[Math.min(currentStep, BOOT_STEPS.length - 1)].progress}%
+          </span>
         </div>
 
         {/* Primary Animated Progress Bar */}

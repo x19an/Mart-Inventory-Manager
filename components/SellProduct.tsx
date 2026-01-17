@@ -19,6 +19,7 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [status, setStatus] = useState<{ text: string; success: boolean } | null>(null);
+  const [isCheckoutDone, setIsCheckoutDone] = useState(false);
 
   const filteredSearch = useMemo(() => {
     if (!searchTerm) return [];
@@ -30,6 +31,7 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
   }, [searchTerm, products]);
 
   const addToCart = (product: Product) => {
+    if (isCheckoutDone) return; // Prevent adding to a "closed" cart
     const existing = cart.find(item => item.product.id === product.id);
     if (existing) {
       if (existing.quantity >= product.stock) {
@@ -45,10 +47,12 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
   };
 
   const removeFromCart = (id: string) => {
+    if (isCheckoutDone) return;
     setCart(cart.filter(item => item.product.id !== id));
   };
 
   const updateQuantity = (id: string, delta: number) => {
+    if (isCheckoutDone) return;
     setCart(cart.map(item => {
       if (item.product.id === id) {
         const newQty = Math.max(1, Math.min(item.product.stock, item.quantity + delta));
@@ -63,11 +67,17 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
   const handleCheckout = () => {
     if (cart.length === 0) return;
     
+    // Step 1: Record sale in DB
     onBulkSale(cart.map(item => ({ productId: item.product.id, quantity: item.quantity })));
-    printReceipt();
+    setIsCheckoutDone(true);
+    setStatus({ text: "Sale recorded successfully. Choose an option below.", success: true });
+  };
+
+  const handleNewSale = () => {
     setCart([]);
-    setStatus({ text: "Sale completed and receipt generated!", success: true });
-    setTimeout(() => setStatus(null), 5000);
+    setIsCheckoutDone(false);
+    setStatus(null);
+    setSearchTerm('');
   };
 
   const printReceipt = () => {
@@ -111,13 +121,15 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
     doc.setFontSize(8);
     doc.text('Thank you!', centerX, y + 25, { align: 'center' });
     doc.save(`receipt_${Date.now()}.pdf`);
+    
+    setStatus({ text: "Receipt generated. Ready for next sale?", success: true });
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       {/* Search and Product Picker */}
       <div className="lg:col-span-2 space-y-6">
-        <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+        <div className={`bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl transition-opacity duration-300 ${isCheckoutDone ? 'opacity-50 pointer-events-none' : ''}`}>
           <label className="block text-sm font-medium text-slate-400 mb-3">Add Items to Cart</label>
           <div className="relative">
             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
@@ -126,9 +138,10 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by Name or Scan ID..."
+              disabled={isCheckoutDone}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-12 pr-4 py-4 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             />
-            {filteredSearch.length > 0 && (
+            {filteredSearch.length > 0 && !isCheckoutDone && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-20 overflow-hidden divide-y divide-slate-800">
                 {filteredSearch.map(p => (
                   <button
@@ -149,19 +162,23 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
         </div>
 
         {status && (
-          <div className={`p-4 rounded-xl border ${status.success ? 'bg-green-500/10 border-green-500 text-green-500' : 'bg-red-500/10 border-red-500 text-red-500'}`}>
-            {status.text}
+          <div className={`p-4 rounded-xl border animate-in slide-in-from-top-2 duration-300 ${status.success ? 'bg-green-500/10 border-green-500 text-green-500' : 'bg-red-500/10 border-red-500 text-red-500'}`}>
+            <div className="flex items-center space-x-2">
+              <span>{status.success ? '✅' : '⚠️'}</span>
+              <span className="font-bold text-sm">{status.text}</span>
+            </div>
           </div>
         )}
 
         {/* Catalog Shortcut */}
-        <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
+        <div className={`bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl transition-opacity duration-300 ${isCheckoutDone ? 'opacity-50 pointer-events-none' : ''}`}>
           <h4 className="text-slate-400 font-bold text-xs uppercase mb-4 tracking-widest">Available Catalog</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {products.filter(p => p.stock > 0).slice(0, 4).map(p => (
               <button 
                 key={p.id} 
                 onClick={() => addToCart(p)}
+                disabled={isCheckoutDone}
                 className="flex items-center p-3 bg-slate-900 rounded-xl border border-slate-700 hover:border-blue-500 transition-all text-left"
               >
                 <div className="w-10 h-10 bg-slate-800 rounded-lg flex items-center justify-center mr-3 text-lg">📦</div>
@@ -172,7 +189,11 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
               </button>
             ))}
           </div>
-          <button onClick={onViewSearch} className="w-full mt-6 py-2 text-slate-500 hover:text-slate-300 text-sm transition-colors border-t border-slate-700 pt-4">
+          <button 
+            onClick={onViewSearch} 
+            disabled={isCheckoutDone}
+            className="w-full mt-6 py-2 text-slate-500 hover:text-slate-300 text-sm transition-colors border-t border-slate-700 pt-4 disabled:opacity-50"
+          >
             Browse Full Inventory →
           </button>
         </div>
@@ -183,24 +204,28 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
         <div className="p-6 border-b border-slate-700 bg-slate-950/20">
           <h3 className="text-white font-bold text-lg flex items-center justify-between">
             <span>Shopping Cart</span>
-            <span className="bg-blue-500 text-white text-[10px] px-2 py-1 rounded-full">{cart.length} ITEMS</span>
+            <span className={`bg-blue-500 text-white text-[10px] px-2 py-1 rounded-full transition-colors ${isCheckoutDone ? 'bg-green-600' : ''}`}>
+              {isCheckoutDone ? 'SALE COMPLETED' : `${cart.length} ITEMS`}
+            </span>
           </h3>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {cart.length > 0 ? (
             cart.map(item => (
-              <div key={item.product.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 relative group">
-                <button 
-                  onClick={() => removeFromCart(item.product.id)}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
-                >✕</button>
+              <div key={item.product.id} className={`bg-slate-900 p-4 rounded-xl border border-slate-800 relative group transition-opacity ${isCheckoutDone ? 'opacity-80' : ''}`}>
+                {!isCheckoutDone && (
+                  <button 
+                    onClick={() => removeFromCart(item.product.id)}
+                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  >✕</button>
+                )}
                 <div className="text-slate-100 text-sm font-bold mb-2">{item.product.name}</div>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center bg-slate-950 rounded-lg p-1 border border-slate-700">
-                    <button onClick={() => updateQuantity(item.product.id, -1)} className="px-2 text-slate-400 hover:text-white">-</button>
+                  <div className={`flex items-center bg-slate-950 rounded-lg p-1 border border-slate-700 ${isCheckoutDone ? 'opacity-50' : ''}`}>
+                    <button onClick={() => updateQuantity(item.product.id, -1)} disabled={isCheckoutDone} className="px-2 text-slate-400 hover:text-white disabled:cursor-not-allowed">-</button>
                     <span className="px-3 text-white font-mono text-sm">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.product.id, 1)} className="px-2 text-slate-400 hover:text-white">+</button>
+                    <button onClick={() => updateQuantity(item.product.id, 1)} disabled={isCheckoutDone} className="px-2 text-slate-400 hover:text-white disabled:cursor-not-allowed">+</button>
                   </div>
                   <div className="text-green-500 font-bold font-mono">
                     {settings.currency} {(item.product.price * item.quantity).toLocaleString()}
@@ -225,15 +250,37 @@ const SellProduct: React.FC<SellProductProps> = ({ products, onBulkSale, setting
             <span>Grand Total</span>
             <span className="text-blue-500 font-mono">{settings.currency} {cartTotal.toLocaleString()}</span>
           </div>
-          <button 
-            onClick={handleCheckout}
-            disabled={cart.length === 0}
-            className={`w-full py-4 rounded-xl font-bold text-white shadow-xl transition-all ${
-              cart.length > 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-700 cursor-not-allowed opacity-50'
-            }`}
-          >
-            Checkout & Print Receipt
-          </button>
+
+          <div className="pt-2">
+            {!isCheckoutDone ? (
+              <button 
+                onClick={handleCheckout}
+                disabled={cart.length === 0}
+                className={`w-full py-4 rounded-xl font-bold text-white shadow-xl transition-all ${
+                  cart.length > 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-700 cursor-not-allowed opacity-50'
+                }`}
+              >
+                Complete Sale
+              </button>
+            ) : (
+              <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <button 
+                  onClick={printReceipt}
+                  className="w-full py-4 bg-green-600 hover:bg-green-700 rounded-xl font-bold text-white shadow-xl transition-all flex items-center justify-center space-x-2 group"
+                >
+                  <span className="group-hover:scale-125 transition-transform">🖨️</span>
+                  <span>Print Receipt</span>
+                </button>
+                <button 
+                  onClick={handleNewSale}
+                  className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl font-bold text-slate-300 transition-all flex items-center justify-center space-x-2"
+                >
+                  <span>🔄</span>
+                  <span>New Transaction</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
