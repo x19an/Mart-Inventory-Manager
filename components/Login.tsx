@@ -65,9 +65,14 @@ const Login: React.FC<LoginProps> = ({ correctPin, onLogin, martName }) => {
           </form>
         </div>
         
-        <p className="text-center mt-8 text-slate-600 text-xs">
-          Mart Inventory Management System v1.0.0
-        </p>
+        <div className="text-center mt-8 space-y-1">
+          <p className="text-slate-600 text-[10px] font-bold tracking-widest uppercase">
+            Mart Inventory Management System v1.0.0
+          </p>
+          <p className="text-slate-500 text-xs">
+            Made by <a href="https://github.com/x19an" target="_blank" rel="noopener noreferrer" className="text-blue-500 font-bold hover:underline">x19</a>
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -53,13 +53,28 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, adminName }
         })}
       </nav>
       
-      <div className="mt-auto p-4 bg-slate-900/40 rounded-2xl border border-slate-800/50 mt-8">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs">👤</div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-white text-xs font-bold truncate">{adminName || 'Admin User'}</span>
-            <span className="text-[10px] text-slate-500 font-bold uppercase">Root Access</span>
+      <div className="mt-auto space-y-4 pt-8">
+        <div className="p-4 bg-slate-900/40 rounded-2xl border border-slate-800/50">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs">👤</div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-white text-xs font-bold truncate">{adminName || 'Admin User'}</span>
+              <span className="text-[10px] text-slate-500 font-bold uppercase">Root Access</span>
+            </div>
           </div>
+        </div>
+
+        <div className="px-4 pb-2 text-center">
+          <p className="text-[10px] text-slate-600 font-bold tracking-widest uppercase mb-1">Software License</p>
+          <a 
+            href="https://github.com/x19an" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-[11px] text-slate-400 hover:text-blue-500 transition-colors font-medium flex items-center justify-center space-x-1"
+          >
+            <span>Made by</span>
+            <span className="font-bold underline decoration-blue-500/30 underline-offset-2 text-slate-300">x19an</span>
+          </a>
         </div>
       </div>
     </aside>
