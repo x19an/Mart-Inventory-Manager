@@ -105,20 +105,27 @@ const Dashboard: React.FC<DashboardProps> = ({ products, transactions, settings,
 
           <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-xl">
             <h3 className="text-white font-bold mb-4">Quick Navigation</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button 
                 onClick={() => onViewChange(View.SELL_PRODUCT)}
-                className="p-4 bg-slate-900 border border-slate-700 rounded-xl hover:border-blue-500 transition-all flex flex-col items-center group"
+                className="p-3 bg-slate-900 border border-slate-700 rounded-xl hover:border-blue-500 transition-all flex flex-col items-center group text-center"
               >
-                <span className="text-2xl mb-2 group-hover:scale-110 transition-transform">💰</span>
-                <span className="text-xs text-slate-300 font-bold">New Sale</span>
+                <span className="text-xl mb-1 group-hover:scale-110 transition-transform">💰</span>
+                <span className="text-[10px] text-slate-300 font-bold uppercase">Sale</span>
               </button>
               <button 
                 onClick={() => onViewChange(View.ADD_PRODUCT)}
-                className="p-4 bg-slate-900 border border-slate-700 rounded-xl hover:border-green-500 transition-all flex flex-col items-center group"
+                className="p-3 bg-slate-900 border border-slate-700 rounded-xl hover:border-green-500 transition-all flex flex-col items-center group text-center"
               >
-                <span className="text-2xl mb-2 group-hover:scale-110 transition-transform">➕</span>
-                <span className="text-xs text-slate-300 font-bold">Add Item</span>
+                <span className="text-xl mb-1 group-hover:scale-110 transition-transform">➕</span>
+                <span className="text-[10px] text-slate-300 font-bold uppercase">Add</span>
+              </button>
+              <button 
+                onClick={() => onViewChange(View.BULK_ADD)}
+                className="p-3 bg-slate-900 border border-slate-700 rounded-xl hover:border-purple-500 transition-all flex flex-col items-center group text-center"
+              >
+                <span className="text-xl mb-1 group-hover:scale-110 transition-transform">📥</span>
+                <span className="text-[10px] text-slate-300 font-bold uppercase">Bulk</span>
               </button>
             </div>
           </div>

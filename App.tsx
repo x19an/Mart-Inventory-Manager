@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
+import TopBar from './components/TopBar';
 import AddProduct from './components/AddProduct';
+import BulkAdd from './components/BulkAdd';
 import SellProduct from './components/SellProduct';
 import SearchProducts from './components/SearchProducts';
 import BestSellers from './components/BestSellers';
@@ -72,6 +74,32 @@ const App: React.FC = () => {
     setActiveView(View.SEARCH_PRODUCTS);
   };
 
+  const handleBulkAdd = (newProducts: Omit<Product, 'id' | 'unitsSold'>[]) => {
+    const checkoutId = 'BULK-' + Date.now();
+    const newItems: Product[] = [];
+    const newLogs: Transaction[] = [];
+
+    newProducts.forEach(item => {
+      const productId = Math.random().toString(36).substr(2, 9).toUpperCase();
+      const product: Product = { ...item, id: productId, unitsSold: 0 };
+      newItems.push(product);
+      newLogs.push({
+        id: Math.random().toString(36).substr(2, 9).toUpperCase(),
+        checkoutId,
+        productId,
+        productName: product.name,
+        type: 'STOCK_ADD',
+        quantity: product.stock,
+        total: product.price * product.stock,
+        timestamp: Date.now()
+      });
+    });
+
+    setProducts(prev => [...prev, ...newItems]);
+    setTransactions(prev => [...newLogs, ...prev]);
+    setActiveView(View.SEARCH_PRODUCTS);
+  };
+
   const handleUpdateProduct = (updatedProduct: Product) => {
     const oldProduct = products.find(p => p.id === updatedProduct.id);
     if (oldProduct && oldProduct.stock !== updatedProduct.stock) {
@@ -122,9 +150,16 @@ const App: React.FC = () => {
     setTransactions(prev => [...newLogs, ...prev]);
   };
 
-  const handleLogout = () => {
+  const handleLock = () => {
     setIsAuthenticated(false);
     setActiveView(View.DASHBOARD);
+  };
+
+  const getViewTitle = () => {
+    if (activeView === View.EDIT_PRODUCT) return "Product Editor";
+    if (activeView === View.TRANSACTION_LOG) return "Transactions";
+    if (activeView === View.BEST_SELLERS) return "Analytics";
+    return activeView.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ');
   };
 
   if (isExited) {
@@ -141,61 +176,77 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-900">
-      <Sidebar activeView={activeView} onViewChange={setActiveView} onExit={handleLogout} martName={settings.martName} />
-      <main className="flex-1 ml-64 p-8 overflow-y-auto">
-        <header className="mb-8 max-w-6xl mx-auto flex justify-between items-center">
-          <h2 className="text-3xl font-bold text-white">
-            {activeView === View.EDIT_PRODUCT ? 'Edit Product' : activeView.replace('_', ' ')}
-          </h2>
-          {activeView === View.SEARCH_PRODUCTS && (
-            <button 
-              onClick={() => {
-                const csvContent = "data:text/csv;charset=utf-8," 
-                  + ["ID,Name,Category,Price,Stock,Sold"].join(",") + "\n"
-                  + products.map(p => `${p.id},${p.name},${p.category},${p.price},${p.stock},${p.unitsSold}`).join("\n");
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "inventory.csv");
-                document.body.appendChild(link);
-                link.click();
-              }}
-              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm transition-all border border-slate-700"
-            >
-              📥 Export CSV
-            </button>
-          )}
-        </header>
+    <div className="flex min-h-screen bg-slate-950">
+      <TopBar martName={settings.martName} onLock={handleLock} />
+      <Sidebar activeView={activeView} onViewChange={setActiveView} adminName={settings.adminName} />
+      
+      <main className="flex-1 ml-64 mt-16 p-8 overflow-y-auto">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+            <div>
+              <div className="flex items-center space-x-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">
+                <span>System</span>
+                <span>/</span>
+                <span className="text-blue-500">{getViewTitle()}</span>
+              </div>
+              <h2 className="text-3xl font-black text-white tracking-tight">
+                {getViewTitle()}
+              </h2>
+            </div>
+            
+            <div className="flex items-center space-x-3">
+              {activeView === View.SEARCH_PRODUCTS && (
+                <button 
+                  onClick={() => {
+                    const csvContent = "data:text/csv;charset=utf-8," 
+                      + ["ID,Name,Category,Price,Stock,Sold"].join(",") + "\n"
+                      + products.map(p => `${p.id},${p.name},${p.category},${p.price},${p.stock},${p.unitsSold}`).join("\n");
+                    const encodedUri = encodeURI(csvContent);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encodedUri);
+                    link.setAttribute("download", "inventory_report.csv");
+                    document.body.appendChild(link);
+                    link.click();
+                  }}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-bold transition-all border border-slate-800 flex items-center space-x-2"
+                >
+                  <span>📥</span>
+                  <span>Export Report</span>
+                </button>
+              )}
+            </div>
+          </header>
 
-        <div className="max-w-6xl mx-auto">
-          {activeView === View.DASHBOARD && (
-            <Dashboard 
-              products={products} 
-              transactions={transactions} 
-              settings={settings} 
-              onViewChange={setActiveView} 
-            />
-          )}
-          {activeView === View.ADD_PRODUCT && <AddProduct onAdd={handleAddProduct} categories={categories} />}
-          {activeView === View.SELL_PRODUCT && (
-            <SellProduct 
-              products={products} 
-              onBulkSale={handleBulkSale} 
-              settings={settings} 
-              onViewSearch={() => setActiveView(View.SEARCH_PRODUCTS)}
-            />
-          )}
-          {activeView === View.SEARCH_PRODUCTS && (
-            <SearchProducts products={products} onEdit={(p) => {setEditingProduct(p); setActiveView(View.EDIT_PRODUCT);}} currency={settings.currency} />
-          )}
-          {activeView === View.BEST_SELLERS && <BestSellers products={products} transactions={transactions} currency={settings.currency} />}
-          {activeView === View.CATEGORIES && <CategoryManager categories={categories} setCategories={setCategories} />}
-          {activeView === View.SETTINGS && <SettingsManager settings={settings} setSettings={setSettings} />}
-          {activeView === View.TRANSACTION_LOG && <TransactionLog transactions={transactions} settings={settings} />}
-          {activeView === View.EDIT_PRODUCT && editingProduct && (
-            <EditProduct product={editingProduct} onUpdate={handleUpdateProduct} onCancel={() => setActiveView(View.SEARCH_PRODUCTS)} categories={categories} />
-          )}
+          <div className="pb-20">
+            {activeView === View.DASHBOARD && (
+              <Dashboard 
+                products={products} 
+                transactions={transactions} 
+                settings={settings} 
+                onViewChange={setActiveView} 
+              />
+            )}
+            {activeView === View.ADD_PRODUCT && <AddProduct onAdd={handleAddProduct} categories={categories} />}
+            {activeView === View.BULK_ADD && <BulkAdd onBulkAdd={handleBulkAdd} categories={categories} />}
+            {activeView === View.SELL_PRODUCT && (
+              <SellProduct 
+                products={products} 
+                onBulkSale={handleBulkSale} 
+                settings={settings} 
+                onViewSearch={() => setActiveView(View.SEARCH_PRODUCTS)}
+              />
+            )}
+            {activeView === View.SEARCH_PRODUCTS && (
+              <SearchProducts products={products} onEdit={(p) => {setEditingProduct(p); setActiveView(View.EDIT_PRODUCT);}} currency={settings.currency} />
+            )}
+            {activeView === View.BEST_SELLERS && <BestSellers products={products} transactions={transactions} currency={settings.currency} />}
+            {activeView === View.CATEGORIES && <CategoryManager categories={categories} setCategories={setCategories} />}
+            {activeView === View.SETTINGS && <SettingsManager settings={settings} setSettings={setSettings} />}
+            {activeView === View.TRANSACTION_LOG && <TransactionLog transactions={transactions} settings={settings} />}
+            {activeView === View.EDIT_PRODUCT && editingProduct && (
+              <EditProduct product={editingProduct} onUpdate={handleUpdateProduct} onCancel={() => setActiveView(View.SEARCH_PRODUCTS)} categories={categories} />
+            )}
+          </div>
         </div>
       </main>
     </div>

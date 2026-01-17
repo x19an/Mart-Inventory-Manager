@@ -37,15 +37,28 @@ const SettingsManager: React.FC<SettingsManagerProps> = ({ settings, setSettings
           <div>
             <h3 className="text-blue-500 font-bold text-sm uppercase tracking-widest mb-6 border-b border-slate-700 pb-2">Store Profile</h3>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">Mart Name</label>
-                <input
-                  type="text"
-                  name="martName"
-                  value={formData.martName}
-                  onChange={handleChange}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">Mart Name</label>
+                  <input
+                    type="text"
+                    name="martName"
+                    value={formData.martName}
+                    onChange={handleChange}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-400 mb-2">Admin Name</label>
+                  <input
+                    type="text"
+                    name="adminName"
+                    value={formData.adminName}
+                    onChange={handleChange}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    placeholder="e.g. John Doe"
+                  />
+                </div>
               </div>
 
               <div>

@@ -8,6 +8,7 @@ const DEFAULT_DATA: MasterData = {
   categories: ['Beverages', 'Snacks', 'Dairy', 'Produce', 'Meat', 'Bakery'],
   settings: {
     martName: 'MART INVENTORY',
+    adminName: 'Admin User',
     address: '123 Main Street, City',
     contact: '+1 234 567 890',
     currency: 'Rs.',

@@ -23,6 +23,7 @@ export interface Transaction {
 
 export interface Settings {
   martName: string;
+  adminName: string;
   address: string;
   contact: string;
   currency: string;
@@ -39,6 +40,7 @@ export interface MasterData {
 export enum View {
   DASHBOARD = 'DASHBOARD',
   ADD_PRODUCT = 'ADD_PRODUCT',
+  BULK_ADD = 'BULK_ADD',
   SELL_PRODUCT = 'SELL_PRODUCT',
   SEARCH_PRODUCTS = 'SEARCH_PRODUCTS',
   BEST_SELLERS = 'BEST_SELLERS',
