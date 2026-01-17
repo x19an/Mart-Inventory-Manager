@@ -1,0 +1,6 @@
+/* Reset CSS - The application primarily uses Tailwind CSS classes defined in the React components */
+body {
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
